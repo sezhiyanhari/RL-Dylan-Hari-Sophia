@@ -1,5 +1,5 @@
 from retro_contest.local import make
-
+from sonic_util import AllowBacktracking, make_env
 # Input is a 224 by 320 by 3 ndarray (observation)
 # Action is a size-12 vector (np.zeros(12))
 # Delta score is an output of the neural network
@@ -23,7 +23,7 @@ class DDQN(object):
 
         self.dropped_state = tf.layers.dropout(self.state, rate = 0.2)
         self.dropped_state_prime = tf.layers.dropout(self.state_prime, rate = 0.2)
-        
+
         # Neural Network
         with tf.name_scope('Neural_network') as scope:
             with tf.name_scope('hidden_layer') as scope:
@@ -38,35 +38,36 @@ class DDQN(object):
         self.train_step = tf.train.RMSPropOptimizer(0.00020, momentum=0.95, use_locking=False, centered=False, name='RMSProp').minimize(self.loss)
 
         tf.global_variables_initializer().run()
-    
+
     def train(self):
         minibatch = self.experience_replay[np.random.choice(self.experience_replay.shape[0], batch_size), :]
         true_rewards = minibatch[:, 2] # scalar values
         done = minibatch[:, 5] # vectors of size 12
         state = np.concatenate(minibatch[:, 0]).reshape((batch_size, -1))
-        print(state.shape)
+        #print(state.shape)
         """summary, _ = sess.run([self.train_step], { self.state : board,
                                                    self.state_prime: })
         """
 
 def main():
     training_episodes = 1000
-    env = make(game='SonicAndKnuckles3-Genesis', state='AngelIslandZone.Act1')
+    #env = make(game='SonicAndKnuckles3-Genesis', state='AngelIslandZone.Act1')
+    env = make_env(stack=False, scale_rew=False)
     obs = env.reset()
     espio = DDQN()
     score = 0
 
     # training
     for e in range(0, training_episodes):
-        action = env.action_space.sample() 
+        action = env.action_space.sample()
         obs_prime, rew, done, info = env.step(action)
         score_prime = info['score']
         delta_score = score_prime - score
-        
+
         D = (obs_prime.flatten(), action, rew, delta_score, obs.flatten(), done)
         espio.experience_replay = np.append(espio.experience_replay, [D], axis = 0)
-        # env.render()
-        # espio.train()
+        env.render()
+        espio.train()
         obs = obs_prime
         espio.train()
         score = score_prime # reset score to score_prime
@@ -79,7 +80,7 @@ def main():
     # finished training
     while True:
         obs, rew, done, info = env.step(env.action_space.sample())
-        # env.render()
+        env.render()
         if done:
             obs = env.reset()
 
